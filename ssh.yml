@@ -1,0 +1,10 @@
+---
+ - hosts: pgdatabase 
+   sudo: yes 
+   tasks: 
+
+#   - name: generate ssh key 
+#     command: ssh-keygen -t rsa
+    - name: copy the publickey from server to target server 
+      command: ssh-copy-id root@{{ ansible_default_ipv4.address }}
+                                                           

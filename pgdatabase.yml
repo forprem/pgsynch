@@ -1,0 +1,101 @@
+---
+- hosts: local
+  sudo_user: postgres
+#  remote_user: postgres
+#  become: yes
+
+  environment:
+    http_proxy: http://id:password@proxy.url.com:8080
+    https_proxy: https://id:password@proxy.url.com:8080
+
+
+  tasks:
+   - name: install repo for PostgreSQL 9.6
+     yum:
+        name: http://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-redhat96-9.6-3.noarch.rpm
+        state: present
+#     become: yes
+
+   - name: install PostgreSQL version 9.6 & python-psycopg2
+     yum:
+        name: "{{ item }}"
+        state: present
+     with_items:
+        - postgresql96-server
+        - postgresql96-contrib
+        - pg_repack96
+        - python-psycopg2
+
+   - name: Initialize Postgres
+     command: /usr/pgsql-9.6/bin/postgresql96-setup initdb
+     environment:
+      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+#     become: yes 
+
+
+#   - name: create data cluster
+#     command: service postgresql-9.6 initdb
+
+   - service:
+       name: postgresql-9.6
+       state: started
+       enabled: yes
+
+   - name: Ensure the PostgreSQL service is running
+     service: 
+       name: postgresql-9.6 
+       state: started 
+       enabled: yes
+      
+ 
+   - name: create ROLE replicant
+     postgresql_user:
+       db: postgres
+       login_unix_socket: /tmp
+       name: replicant
+       password: "{{ passwd }}"
+       role_attr_flags: replication
+     become: yes
+     become_method: su
+     become_user: postgres
+      
+
+
+   - name: add new configuration to "postgresql.conf"
+     blockinfile:
+       dest: /var/lib/pgsql/9.6/data/postgresql.conf
+       block: |
+         include 'server.conf'
+         
+   - name: add new configuration to "server.conf"
+     blockinfile:
+       create: yes
+       dest: /var/lib/pgsql/9.6/data/server.conf
+       block: |
+         listen_addresses = '*'
+         wal_level = hot_standby
+         max_wal_senders = 6
+         wal_keep_segments = 10
+         hot_standby = on
+
+   - name: add new configuration to "pg_hba.conf"
+     blockinfile:
+       dest: /var/lib/pgsql/9.6/data/pg_hba.conf
+       block: |
+         host    all             all             0.0.0.0/0                md5
+         host    replication     replicant       0.0.0.0/0                md5
+
+   - name: update environment variables in UNIX account postgres
+     blockinfile:
+       create: yes
+       dest: /var/lib/pgsql/.pgsql_profile
+       block: |
+         export PGHOST=/tmp PAGER=less PGDATA=/var/lib/pgsql/9.6/data
+          
+   - service:
+       name: postgresql-9.6
+       state: restarted
+
+   - name: configure init for startup on bootup
+     shell: chkconfig --level 2345 postgresql-9.6 on
+...

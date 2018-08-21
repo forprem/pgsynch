@@ -1,0 +1,7 @@
+[pgdatabase]
+10.245.222.126 ansible_ssh_user=root
+10.244.219.35 ansible_ssh_user=root
+
+[slave]
+10.244.219.35 ansible_ssh_user=root
+
